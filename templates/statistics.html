@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bot Statistikasi</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js (Grafiklar uchun) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Lucide Icons (Ikonlar uchun) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Asosiy shriftni belgilash */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* Dark mode foni */
+        }
+        /* Telegram Web App uchun scrollbarni yashirish */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+        /* Chart.js tooltipslari uchun sozlamalar */
+        .chartjs-tooltip {
+            background: rgba(31, 41, 55, 0.9);
+            border-radius: 0.5rem;
+            color: white;
+            padding: 8px 12px;
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 antialiased">
+
+    <div class="container mx-auto p-4 md:p-6">
+        
+        <!-- Sarlavha qismi -->
+        <header class="mb-6 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-500 p-2 rounded-lg">
+                    <i data-lucide="bar-chart-3" class="w-6 h-6 text-white"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-white">Avto E'lon Bot Statistikasi</h1>
+            </div>
+             <div class="text-sm text-gray-400" id="current-date"></div>
+        </header>
+
+        <!-- Asosiy ko'rsatkichlar (Kartalar) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
+            <!-- Bugungi Murojaatlar -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-5 hover:bg-gray-700/50 transition-colors duration-300">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-medium text-gray-400">Bugungi Murojaatlar</h3>
+                    <i data-lucide="inbox" class="w-5 h-5 text-sky-400"></i>
+                </div>
+                <p class="text-3xl font-bold text-white">125</p>
+                <p class="text-xs text-green-400 mt-1">+8 ta kechagidan ko'p</p>
+            </div>
+            
+            <!-- Bugungi Sotuvlar -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-5 hover:bg-gray-700/50 transition-colors duration-300">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-medium text-gray-400">Bugungi Sotuvlar</h3>
+                    <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400"></i>
+                </div>
+                <p class="text-3xl font-bold text-white">32</p>
+                 <p class="text-xs text-green-400 mt-1">+12% o'sish</p>
+            </div>
+
+            <!-- Haftalik Murojaatlar -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-5 hover:bg-gray-700/50 transition-colors duration-300">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-medium text-gray-400">Haftalik Murojaatlar</h3>
+                    <i data-lucide="calendar-days" class="w-5 h-5 text-amber-400"></i>
+                </div>
+                <p class="text-3xl font-bold text-white">874</p>
+                <p class="text-xs text-red-400 mt-1">-5% o'tgan haftaga nisbatan</p>
+            </div>
+
+            <!-- Oylik Sotuvlar -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-5 hover:bg-gray-700/50 transition-colors duration-300">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-medium text-gray-400">Oylik Sotuvlar</h3>
+                    <i data-lucide="trending-up" class="w-5 h-5 text-indigo-400"></i>
+                </div>
+                <p class="text-3xl font-bold text-white">1,159</p>
+                <p class="text-xs text-green-400 mt-1">+18% o'tgan oyga nisbatan</p>
+            </div>
+        </div>
+
+        <!-- Grafiklar -->
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-4 md:gap-6">
+            
+            <!-- Chiziqli Grafik (Dinamika) -->
+            <div class="lg:col-span-3 bg-gray-800 border border-gray-700 rounded-xl p-5">
+                <h3 class="text-lg font-semibold text-white mb-4">Haftalik Dinamika</h3>
+                <div class="h-80">
+                    <canvas id="weeklyDynamicsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Doiraviy Grafik (Hududlar) -->
+            <div class="lg:col-span-2 bg-gray-800 border border-gray-700 rounded-xl p-5">
+                <h3 class="text-lg font-semibold text-white mb-4">Hududlar Bo'yicha Murojaatlar</h3>
+                <div class="h-80 flex items-center justify-center">
+                    <canvas id="regionDistributionChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Lucide ikonlarini ishga tushirish
+        lucide.createIcons();
+
+        // Bugungi sanani ko'rsatish
+        const today = new Date();
+        const options = { year: 'numeric', month: 'long', day: 'numeric' };
+        document.getElementById('current-date').textContent = today.toLocaleDateString('uz-UZ', options);
+
+
+        // --- Chart.js Grafiklarini Sozlash ---
+
+        // 1. Haftalik Dinamika (Chiziqli Grafik)
+        const weeklyCtx = document.getElementById('weeklyDynamicsChart').getContext('2d');
+        
+        // Gradient fon yaratish
+        const gradientBg = weeklyCtx.createLinearGradient(0, 0, 0, 300);
+        gradientBg.addColorStop(0, 'rgba(74, 222, 128, 0.3)');
+        gradientBg.addColorStop(1, 'rgba(74, 222, 128, 0)');
+
+        const weeklyDynamicsChart = new Chart(weeklyCtx, {
+            type: 'line',
+            data: {
+                labels: ['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba', 'Yakshanba'],
+                datasets: [
+                    {
+                        label: 'Murojaatlar',
+                        data: [95, 110, 105, 130, 145, 120, 169], // Statik ma'lumotlar
+                        borderColor: '#38bdf8', // sky-400
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointBackgroundColor: '#38bdf8',
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                    },
+                    {
+                        label: 'Sotuvlar',
+                        data: [20, 25, 22, 35, 40, 30, 51], // Statik ma'lumotlar
+                        borderColor: '#4ade80', // emerald-400
+                        backgroundColor: gradientBg,
+                        tension: 0.4,
+                        fill: true,
+                        borderWidth: 2,
+                        pointBackgroundColor: '#4ade80',
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)',
+                        },
+                        ticks: {
+                            color: '#9ca3af', // gray-400
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#9ca3af', // gray-400
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#d1d5db' // gray-300
+                        }
+                    },
+                    tooltip: {
+                        enabled: true,
+                        backgroundColor: 'rgba(31, 41, 55, 0.9)',
+                        titleColor: '#ffffff',
+                        bodyColor: '#e5e7eb',
+                        padding: 10,
+                        cornerRadius: 8,
+                        boxPadding: 4,
+                    }
+                }
+            }
+        });
+
+        // 2. Hududlar Bo'yicha Taqsimot (Doiraviy Grafik)
+        const regionCtx = document.getElementById('regionDistributionChart').getContext('2d');
+        const regionDistributionChart = new Chart(regionCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Andijon', 'Namangan', "Farg'ona"],
+                datasets: [{
+                    label: 'Murojaatlar soni',
+                    data: [450, 320, 280], // Statik ma'lumotlar
+                    backgroundColor: [
+                        '#60a5fa', // blue-400
+                        '#4ade80', // emerald-400
+                        '#facc15'  // yellow-400
+                    ],
+                    borderColor: '#1f2937', // gray-800
+                    borderWidth: 4,
+                    hoverOffset: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#d1d5db',
+                            padding: 20,
+                            boxWidth: 12,
+                            font: {
+                                size: 14,
+                            }
+                        }
+                    },
+                    tooltip: {
+                         enabled: true,
+                         backgroundColor: 'rgba(31, 41, 55, 0.9)',
+                         callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed !== null) {
+                                    label += context.parsed;
+                                }
+                                return ' ' + label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Telegram Web App bilan ishlash uchun (ixtiyoriy)
+        // Agar Telegram orqali ma'lumot olish kerak bo'lsa, bu skriptni aktivlashtiring
+        /*
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand(); // Ilovani to'liq ekranga ochish
+        */
+        
+    </script>
+</body>
+</html>
