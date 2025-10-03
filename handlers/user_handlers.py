@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Elon
-from keyboards.default import user_main_menu
+from keyboards.default import user_main_menu, region_keyboard
+from .boshqa_elonlar import BoshqaElonStates
 from keyboards.inline import sold_button, payment_type_buttons, confirm_sold_button
 
 user_router = Router()
@@ -15,17 +16,28 @@ ADMIN_ID = os.getenv("ADMIN_ID")
 
 
 class NewApplication(StatesGroup):
+    region = State()
     phone_number = State()
     description = State()
     plate_number = State()
 
 
-@user_router.message(F.text == "🆕 Yangi murojaat")
+@user_router.message(F.text == "Avtomabil sotish")
 async def new_application_start(message: Message, state: FSMContext):
-    await message.answer(
-        "Murojaat uchun telefon raqamingizni yuboring (masalan: +998901234567):"
-    )
-    await state.set_state(NewApplication.phone_number)
+    await message.answer("Viloyatni tanlang:", reply_markup=region_keyboard)
+
+    await state.set_state(NewApplication.region)
+
+# Viloyat tanlangach, manzil kiritish
+@user_router.message(NewApplication.region)
+async def get_region(message: Message, state: FSMContext):
+	region = message.text
+	if region not in ["Andijon", "Namangan", "Farg'ona"]:
+		await message.answer("Iltimos, viloyatni tugmalardan birini tanlang.")
+		return
+	await state.update_data(region=region)
+	await message.answer("Murojaat uchun telefon raqamingizni yuboring, agar mir nechta raqam yozmoqchi bo'lsangiz ',' bilan ajratib yozing (masalan: +998901234567,+998337654321):")
+	await state.set_state(NewApplication.phone_number)
 
 
 @user_router.message(NewApplication.phone_number)
@@ -38,7 +50,7 @@ async def get_phone_number(message: Message, state: FSMContext):
 @user_router.message(NewApplication.description)
 async def get_description(message: Message, state: FSMContext):
     await state.update_data(description=message.text)
-    await message.answer("Avtomobil davlat raqamini kiriting (masalan: 01A123BC):")
+    await message.answer("Avtomobil davlat raqamini kiriting (masalan: 01A123BC). Bu adminlar uchun kerak kanalda ko'rinmaydi:")
     await state.set_state(NewApplication.plate_number)
 
 
@@ -54,6 +66,8 @@ async def get_plate_number(
         phone_number=data["phone_number"],
         description=data["description"],
         plate_number=data["plate_number"],
+        type_="avto",
+        viloyat=data["region"],
     )
     session.add(new_elon)
     await session.commit()
@@ -89,7 +103,10 @@ async def my_applications(message: Message, session: AsyncSession):
         return
 
     for elon in elons:
-        text = f"🔢 Davlat raqami: {elon.plate_number}\n📝 Tavsif: {elon.description}"
+        if elon.type_ == "avto":
+            text = f"🔢 Davlat raqami: {elon.plate_number}\n📝 Tavsif: {elon.description}"
+        else:
+            text = f"{elon.description.split('|')[-1]} \n📝 Tavsif: {elon.description}"
         if elon.sold:
             text += "\n\n<b>✅ SOTILGAN</b>"
             await message.answer(text)
@@ -150,7 +167,7 @@ async def get_check_photo(
             f"📝 Ma'lumot: {elon.description}\n"
             f"📞 Telefon: {elon.phone_number}"
         )
-        await bot.send_video_note(ADMIN_ID, elon.circled_video_id)
+        await bot.send_video_note(ADMIN_ID, elon.video_id)
         await bot.send_photo(
             ADMIN_ID,
             photo.file_id,
@@ -181,7 +198,7 @@ async def cash_payment(query: CallbackQuery, session: AsyncSession, bot: Bot):
             f"📝 Ma'lumot: {elon.description}\n"
             f"📞 Telefon: {elon.phone_number}"
         )
-        await bot.send_video_note(ADMIN_ID, elon.circled_video_id)
+        await bot.send_video_note(ADMIN_ID, elon.video_id)
         await bot.send_message(
             ADMIN_ID, admin_message, reply_markup=confirm_sold_button(elon.id)
         )

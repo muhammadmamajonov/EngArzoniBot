@@ -20,10 +20,10 @@ class PostCreation(StatesGroup):
     waiting_for_plate = State()
 
 
-@admin_router.message(F.from_user.id.in_(ADMINS_ID), F.text == "📬 Murojaatlar")
+@admin_router.message(F.from_user.id.in_(ADMINS_ID), F.text == "🚗 Avtomobillar")
 async def show_applications(message: Message, session: AsyncSession):
     unposted_elons = await session.execute(
-        select(Elon).where(Elon.posted == False)
+        select(Elon).where(Elon.posted == False, Elon.type_ == "avto").order_by(Elon.id.asc())
     )
     elons = unposted_elons.scalars().all()
 
@@ -44,65 +44,32 @@ async def show_applications(message: Message, session: AsyncSession):
     await message.answer(response)
 
 
-@admin_router.message(F.from_user.id.in_(ADMINS_ID), F.video_note)
-async def get_video_note(message: Message, state: FSMContext):
-    await state.update_data(video_note_id=message.video_note.file_id)
-    await message.answer(
-        "Video qabul qilindi. Endi shu avtomobilning davlat raqamini yuboring:"
+@admin_router.message(F.from_user.id.in_(ADMINS_ID), F.text == "Boshqa e'lonlar")
+async def boshqa_elonlar(message: Message, session: AsyncSession):
+    unposted_elons = await session.execute(
+        select(Elon).where(Elon.posted == False, Elon.type_ == "boshqa")
     )
-    await state.set_state(PostCreation.waiting_for_plate)
+    elons = unposted_elons.scalars().all()
 
-
-@admin_router.message(F.from_user.in_(ADMINS_ID), PostCreation.waiting_for_plate)
-async def post_to_channel(
-    message: Message, state: FSMContext, session: AsyncSession, bot: Bot
-):
-    plate_number = message.text.upper()
-    data = await state.get_data()
-    video_note_id = data["video_note_id"]
-
-    # Ma'lumotlar bazasidan e'lonni topish
-    query = select(Elon).where(
-        Elon.plate_number == plate_number, Elon.posted == False
-    )
-    result = await session.execute(query)
-    elon = result.scalar_one_or_none()
-
-    if not elon:
-        await message.answer(
-            f"❗️'{plate_number}' raqamli yoki hali joylanmagan e'lon topilmadi. "
-            f"Raqamni tekshirib, qayta yuboring."
-        )
+    if not elons:
+        await message.answer(" Hozircha yangi murojaatlar yo'q.")
         return
 
-    # Kanalga post joylash
-    try:
-        sent_video = await bot.send_video_note(CHANNEL_ID, video_note_id)
-        description_text = (
-            f" Avtomobil: {elon.description}\n"
-            f" Murojaat uchun: {elon.phone_number}\n"
+    response = "📬 Yangi e'lonlar:\n\n"
+    for elon in elons:
+        response += (
+            f"🆔 E'lon ID: {elon.id}\n"
+            f"👤 Yuboruvchi ID: {elon.owner_id}\n"
+            f"📞 Telefon: {elon.phone_number}\n"
+            f"📝 Tavsif: {elon.description}\n"
+            f"---------------------\n"
         )
-        sent_description = await bot.send_message(CHANNEL_ID, description_text)
+    await message.answer(response)
 
-        # DBni yangilash
-        elon.circled_video_id = sent_video.video_note.file_id
-        elon.description_id = sent_description.message_id
-        elon.posted = True
-        await session.commit()
-
-        await message.answer(
-            f" E'lon ({plate_number}) kanalga muvaffaqiyatli joylandi.",
-            reply_markup=admin_main_menu,
-        )
-        await state.clear()
-
-    except Exception as e:
-        await message.answer(f" Xatolik yuz berdi: {e}")
-        await state.clear()
 
 
 @admin_router.callback_query(
-    F.from_user.in_(ADMINS_ID), F.data.startswith("confirm_sold_")
+    F.from_user.id.in_(ADMINS_ID), F.data.startswith("confirm_sold_")
 )
 async def mark_as_sold_in_channel(query: CallbackQuery, session: AsyncSession, bot: Bot):
     elon_id = int(query.data.split("_")[2])
@@ -115,17 +82,29 @@ async def mark_as_sold_in_channel(query: CallbackQuery, session: AsyncSession, b
     try:
        
         # Telefon raqamlarni olib tashlash uchun regex
-        new_text = re.sub(r"📞 Murojaat uchun: .*?\n", "", elon.description)
-        final_text = (
-            f"<b>SOTILDI</b> \n\n"
-            f"Avtomobil: {new_text}\n"
-        )
-
-        await bot.edit_message_text(
-            text=final_text,
-            chat_id=CHANNEL_ID,
-            message_id=elon.description_id,
-        )
+        # new_text = re.sub(r"📞 Murojaat uchun: .*?\n", "", elon.description)
+        if elon.type_ == 'avto':
+            final_text = (
+                f"Avtomobil: {elon.description}\n"
+                f"<b>SOTILDI</b> \n\n"
+            )
+        else:
+            final_text = f"{elon.description} \n <b>SOTILDI</b>"
+            
+        try:
+            await bot.edit_message_text(
+                text=final_text,
+                chat_id=CHANNEL_ID,
+                message_id=elon.description_id,
+            )
+        except:
+            print("exept")
+            await bot.edit_message_caption(
+                chat_id=CHANNEL_ID,
+                message_id=elon.description_id,
+                caption=final_text
+            )
+        
         if query.message.caption:
             await query.message.edit_caption(
                 caption=query.message.caption + "\n\n<b> KANALDA 'SOTILDI' DEB BELGILANDI</b>",

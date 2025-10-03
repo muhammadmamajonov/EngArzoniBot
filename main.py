@@ -10,8 +10,10 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 
 from db import init_db, async_session
+from handlers.boshqa_elonlar import boshqa_router
 from handlers.user_handlers import user_router
 from handlers.admin_handlers import admin_router
+from handlers.admin_elon_joylash import admin_elon_joylash_router
 from keyboards.default import user_main_menu, admin_main_menu
 from middlewares.db import DbSessionMiddleware
 
@@ -41,7 +43,9 @@ async def main():
 
     # Routerlarni ulash
     dp.include_router(user_router)
+    dp.include_router(boshqa_router)
     dp.include_router(admin_router)
+    dp.include_router(admin_elon_joylash_router)
 
     # /start komandasi uchun handler
     @dp.message(CommandStart())
